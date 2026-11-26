@@ -29,12 +29,12 @@ _openapi_url = None if _IS_PRODUCTION else "/openapi.json"
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     logger.info("Starting up Capsule API Service...")
-    
-    await init_db()
-    
-    brd_manager = BRDManager()
-    await brd_manager.load_brd(profile_id=1)
-    
+    try:
+        await init_db()
+        brd_manager = BRDManager()
+        await brd_manager.load_brd(profile_id=1)
+    except Exception as e:
+        logger.error(f"Startup initialization warning: {e}", exc_info=True)
     logger.info("Capsule API Service successfully started and ready to handle requests.")
     yield
 

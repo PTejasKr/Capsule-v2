@@ -20,6 +20,9 @@ def get_db_path() -> str:
         path = url.replace("sqlite:///", "")
     else:
         return ""
+
+    if os.environ.get("VERCEL"):
+        return "/tmp/capsule.db"
     
     dir_name = os.path.dirname(path)
     if dir_name and not os.path.exists(dir_name):
@@ -170,26 +173,37 @@ async def init_db():
                 pass
 
     if is_postgres:
-        logger.info("Initializing PostgreSQL database...")
-        pool = await get_pg_pool()
-        async with pool.acquire() as conn:
-            await execute_schema(conn)
-            row = await conn.fetchrow("SELECT id FROM profiles WHERE id = 1")
-            if not row:
-                await conn.execute("INSERT INTO profiles (id, name, changelog_repo, ai_model, brd_content) VALUES (1, 'default', '', 'meta/llama-3.3-70b-instruct', 'Default BRD')")
-                try:
-                    await conn.execute("SELECT setval('profiles_id_seq', 1)")
-                except Exception:
-                    pass
-    else:
-        logger.info(f"Initializing SQLite database at: {DB_PATH}")
-        async with aiosqlite.connect(DB_PATH) as db:
-            await execute_schema(db)
-            async with db.execute("SELECT id FROM profiles WHERE id = 1") as cursor:
-                row = await cursor.fetchone()
-            if not row:
-                await db.execute("INSERT INTO profiles (id, name, changelog_repo, ai_model, brd_content) VALUES (1, 'default', '', 'meta/llama-3.3-70b-instruct', 'Default BRD')")
-            await db.commit()
+        try:
+            logger.info("Initializing PostgreSQL database...")
+            pool = await get_pg_pool()
+            async with pool.acquire() as conn:
+                await execute_schema(conn)
+                row = await conn.fetchrow("SELECT id FROM profiles WHERE id = 1")
+                if not row:
+                    await conn.execute("INSERT INTO profiles (id, name, changelog_repo, ai_model, brd_content) VALUES (1, 'default', '', 'meta/llama-3.3-70b-instruct', 'Default BRD')")
+                    try:
+                        await conn.execute("SELECT setval('profiles_id_seq', 1)")
+                    except Exception:
+                        pass
+            logger.info("Database initialized successfully")
+            return
+        except Exception as e:
+            logger.error(f"PostgreSQL init failed ({e}); falling back to SQLite...")
+            global DB_PATH
+            fallback_path = "/tmp/capsule.db" if os.environ.get("VERCEL") else "./data/capsule.db"
+            settings.DATABASE_URL = f"sqlite+aiosqlite:///{fallback_path}"
+            DB_PATH = get_db_path()
+            is_postgres = False
+            replacements = {"{serial_pk}": "INTEGER PRIMARY KEY AUTOINCREMENT", "{false_val}": "0"}
+
+    logger.info(f"Initializing SQLite database at: {DB_PATH}")
+    async with aiosqlite.connect(DB_PATH) as db:
+        await execute_schema(db)
+        async with db.execute("SELECT id FROM profiles WHERE id = 1") as cursor:
+            row = await cursor.fetchone()
+        if not row:
+            await db.execute("INSERT INTO profiles (id, name, changelog_repo, ai_model, brd_content) VALUES (1, 'default', '', 'meta/llama-3.3-70b-instruct', 'Default BRD')")
+        await db.commit()
             
     logger.info("Database initialized successfully")
 

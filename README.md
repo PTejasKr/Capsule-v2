@@ -4,7 +4,7 @@
 ### Automated CI/CD Release Intelligence & Changelog Engine
 
 <p align="center">
-  <a href="https://capsule-opal-nine.vercel.app"><img src="https://img.shields.io/badge/Live-Vercel%20Client-0070F3?style=for-the-badge&logo=vercel&logoColor=white" alt="Live Demo" /></a>
+  <a href="https://capsule-v2.vercel.app"><img src="https://img.shields.io/badge/Live-capsule--v2.vercel.app-0070F3?style=for-the-badge&logo=vercel&logoColor=white" alt="Live Demo" /></a>
   <a href="LICENSE"><img src="https://img.shields.io/badge/License-MIT-yellow.svg?style=for-the-badge" alt="License" /></a>
   <img src="https://img.shields.io/badge/FastAPI-Python%203.11-009688?style=for-the-badge&logo=fastapi&logoColor=white" alt="FastAPI" />
   <img src="https://img.shields.io/badge/Celery-Distributed%20Queue-37814A?style=for-the-badge&logo=celery&logoColor=white" alt="Celery" />
