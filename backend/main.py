@@ -156,7 +156,76 @@ if ('serviceWorker' in navigator) {
             html = html.replace('<head>', '<head>\n' + polyfill)
             html = html.replace('src="options.js"', 'src="/admin/options.js"')
             return HTMLResponse(content=html)
-    return HTMLResponse("<h2>Super Admin Dashboard Not Found</h2>", status_code=404)
+    return HTMLResponse("""<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Capsule — System &amp; Resource Dashboard</title>
+  <style>
+    body{margin:0;font-family:Inter,Arial,sans-serif;background:#0d1117;color:#e6edf3;padding:32px}
+    .wrap{max-width:860px;margin:0 auto}
+    h1{font-size:20px;margin:0 0 6px}
+    .sub{color:#8b949e;font-size:13px;margin-bottom:24px}
+    .grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:12px;margin-bottom:20px}
+    .card{background:#161b22;border:1px solid #30363d;border-radius:8px;padding:16px}
+    .k{font-size:11px;color:#8b949e;text-transform:uppercase;letter-spacing:.06em}
+    .v{font-size:20px;font-weight:700;margin-top:6px}
+    .ok{color:#3fb950}
+    pre{background:#161b22;border:1px solid #30363d;border-radius:8px;padding:16px;font-size:12px;overflow:auto}
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <h1>Capsule Telemetry &amp; Pipeline Admin</h1>
+    <div class="sub">Minimal runtime resource monitor &amp; API health</div>
+    <div class="grid">
+      <div class="card"><div class="k">Service</div><div class="v ok" id="svc">Loading...</div></div>
+      <div class="card"><div class="k">Database</div><div class="v" id="db">-</div></div>
+      <div class="card"><div class="k">Memory RSS</div><div class="v" id="mem">-</div></div>
+      <div class="card"><div class="k">Uptime</div><div class="v" id="up">-</div></div>
+    </div>
+    <pre id="raw">Fetching /api/resources...</pre>
+  </div>
+  <script>
+    fetch('/api/resources').then(r=>r.json()).then(d=>{
+      document.getElementById('svc').textContent=d.status.toUpperCase();
+      document.getElementById('db').textContent=d.database;
+      document.getElementById('mem').textContent=(d.memory_rss_mb!==null?d.memory_rss_mb+' MB':'N/A');
+      document.getElementById('up').textContent=d.uptime_seconds+' s';
+      document.getElementById('raw').textContent=JSON.stringify(d,null,2);
+    }).catch(e=>{document.getElementById('raw').textContent=String(e);});
+  </script>
+</body>
+</html>""")
+
+import platform
+import time as _time
+_CAPSULE_START = _time.time()
+
+def _capsule_rss_mb():
+    try:
+        with open("/proc/self/status", encoding="utf-8") as fh:
+            for line in fh:
+                if line.startswith("VmRSS:"):
+                    return round(int(line.split()[1]) / 1024.0, 2)
+    except OSError:
+        pass
+    return None
+
+@app.get("/api/resources")
+def get_resources():
+    from backend.database import is_pg
+    return {
+        "status": "operational",
+        "service": "capsule-api",
+        "database": "postgresql" if is_pg() else "sqlite",
+        "uptime_seconds": round(_time.time() - _CAPSULE_START, 2),
+        "memory_rss_mb": _capsule_rss_mb(),
+        "python_version": platform.python_version(),
+        "vercel": bool(os.environ.get("VERCEL")),
+        "rate_limit_rpm": 120,
+    }
 
 @app.get("/admin/options.js")
 def get_admin_js():

@@ -116,6 +116,14 @@ async def generate_changelog_task(repo: str, pr_number: int) -> dict:
     if not row:
         raise ValueError(f"No analysis found for PR #{pr_number} in {repo}")
 
+    def _safe_loads(raw, default):
+        if isinstance(raw, (dict, list)):
+            return raw
+        try:
+            return json.loads(raw) if raw else default
+        except (TypeError, json.JSONDecodeError):
+            return default
+
     changes = [
         ChangeItem(
             file=c["file"],
@@ -124,14 +132,14 @@ async def generate_changelog_task(repo: str, pr_number: int) -> dict:
             description=c["description"],
             confidence=c["confidence"],
         )
-        for c in json.loads(row["changes_json"])
+        for c in _safe_loads(row.get("changes_json"), [])
     ]
-    wf = json.loads(row["workflow_impact_json"])
+    wf = _safe_loads(row.get("workflow_impact_json"), {})
     workflow_impact = WorkflowImpact(
-        has_impact=wf["has_impact"],
-        severity=Severity(wf["severity"]),
-        impact_description=wf["impact_description"],
-        affected_workflows=wf["affected_workflows"],
+        has_impact=wf.get("has_impact", False),
+        severity=Severity(wf.get("severity", "low")),
+        impact_description=wf.get("impact_description", ""),
+        affected_workflows=wf.get("affected_workflows", []),
         before_state=wf.get("before_state", ""),
         after_state=wf.get("after_state", ""),
     )

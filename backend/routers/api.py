@@ -23,9 +23,21 @@ def validate_repo(repo: str) -> str:
         raise HTTPException(status_code=400, detail="Invalid repository format")
     return repo
 
+def _safe_json_loads(raw, default):
+    if raw is None:
+        return default
+    if isinstance(raw, (dict, list)):
+        return raw
+    try:
+        return json.loads(raw)
+    except (TypeError, json.JSONDecodeError) as exc:
+        logger.warning(f"Malformed JSON payload encountered: {exc}")
+        return default
+
+
 async def _reconstruct_summary_from_row(row: dict) -> PRSummary:
     """Helper to reconstruct PRSummary schema from DB row."""
-    changes_list = json.loads(row["changes_json"])
+    changes_list = _safe_json_loads(row.get("changes_json"), [])
     changes = [
         ChangeItem(
             file=c["file"],
@@ -36,14 +48,14 @@ async def _reconstruct_summary_from_row(row: dict) -> PRSummary:
         ) for c in changes_list
     ]
     
-    wf_dict = json.loads(row["workflow_impact_json"])
+    wf_dict = _safe_json_loads(row.get("workflow_impact_json"), {})
     workflow_impact = WorkflowImpact(
-        has_impact=wf_dict["has_impact"],
-        severity=Severity(wf_dict["severity"]),
-        impact_description=wf_dict["impact_description"],
-        affected_workflows=wf_dict["affected_workflows"],
-        before_state=wf_dict["before_state"],
-        after_state=wf_dict["after_state"]
+        has_impact=wf_dict.get("has_impact", False),
+        severity=Severity(wf_dict.get("severity", "low")),
+        impact_description=wf_dict.get("impact_description", ""),
+        affected_workflows=wf_dict.get("affected_workflows", []),
+        before_state=wf_dict.get("before_state", ""),
+        after_state=wf_dict.get("after_state", "")
     )
     
     return PRSummary(
@@ -105,14 +117,14 @@ async def get_pr_workflow_impact(pr_number: int, repo: str = Depends(validate_re
             detail="Access to this PR analysis requires pipeline approval."
         )
         
-    wf_dict = json.loads(row["workflow_impact_json"])
+    wf_dict = _safe_json_loads(row.get("workflow_impact_json"), {})
     return WorkflowImpact(
-        has_impact=wf_dict["has_impact"],
-        severity=Severity(wf_dict["severity"]),
-        impact_description=wf_dict["impact_description"],
-        affected_workflows=wf_dict["affected_workflows"],
-        before_state=wf_dict["before_state"],
-        after_state=wf_dict["after_state"]
+        has_impact=wf_dict.get("has_impact", False),
+        severity=Severity(wf_dict.get("severity", "low")),
+        impact_description=wf_dict.get("impact_description", ""),
+        affected_workflows=wf_dict.get("affected_workflows", []),
+        before_state=wf_dict.get("before_state", ""),
+        after_state=wf_dict.get("after_state", "")
     )
 
 @router.get("/pr/{pr_number}/changelog-preview", dependencies=[Depends(verify_api_key)], response_model=ChangelogEntry)
